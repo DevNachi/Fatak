@@ -1,14 +1,17 @@
 package dev.allsafeindia.fatak;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
 import android.net.wifi.p2p.WifiP2pConfig;
@@ -16,9 +19,12 @@ import android.net.wifi.p2p.WifiP2pDevice;
 import android.net.wifi.p2p.WifiP2pDeviceList;
 import android.net.wifi.p2p.WifiP2pInfo;
 import android.net.wifi.p2p.WifiP2pManager;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.StrictMode;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
@@ -31,7 +37,12 @@ import dev.allsafeindia.fatak.Interface.UpdateUI;
 
 import com.airbnb.lottie.LottieAnimationView;
 import com.codekidlabs.storagechooser.StorageChooser;
+import com.google.zxing.BarcodeFormat;
+import com.google.zxing.MultiFormatWriter;
 import com.google.zxing.Result;
+import com.google.zxing.WriterException;
+import com.google.zxing.common.BitMatrix;
+import com.journeyapps.barcodescanner.BarcodeEncoder;
 
 import java.io.File;
 import java.io.IOException;
@@ -54,7 +65,7 @@ public class MainActivity extends AppCompatActivity implements UpdateUI, DeviceL
     BroadcastReceiver receiver;
     IntentFilter intentFilter;
     List<WifiP2pDevice> p2pDevices = new ArrayList<>();
-    Button button, selectFile, receive;
+    Button send,  receive;
     View customAlertView;
     DeviceAdapter deviceAdapter;
     WifiP2pConfig wifiP2pConfig;
@@ -62,7 +73,7 @@ public class MainActivity extends AppCompatActivity implements UpdateUI, DeviceL
     static FileHandler fileHandeler;
     ServerSocket serverSocket;
     ClientClass clientClass;
-    public TextView ipAddressList, status;
+    public TextView ipAddressList;
     AlertDialog alertDialog;
     boolean isClient = false;
     ImageView qrCodeData;
@@ -80,19 +91,31 @@ public class MainActivity extends AppCompatActivity implements UpdateUI, DeviceL
         deviceAdapter = new DeviceAdapter(this, p2pDevices);
         wifiP2pConfig = new WifiP2pConfig();
         ipAddressList = findViewById(R.id.ipAdressList);
-        status = findViewById(R.id.status);
 
         StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
         StrictMode.setThreadPolicy(policy);
-        button = findViewById(R.id.send);
+        send = findViewById(R.id.send);
         receive = findViewById(R.id.receive);
-        selectFile = findViewById(R.id.selectFile);
         intentFilter = new IntentFilter();
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION);
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION);
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION);
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION);
         registerReceiver(receiver, intentFilter);
+
+        send.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(final View view) {
+                try {
+                    serverSocket = new ServerSocket(8888);
+                    serverClass = new ServerClass(serverSocket, MainActivity.this);
+                    serverClass.start();
+                    ipAddressList.setText(getLocalIpAddress());
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        });
 
         //file picker
         Button filepickerBtn = findViewById(R.id.button_filepicker);
@@ -112,6 +135,57 @@ public class MainActivity extends AppCompatActivity implements UpdateUI, DeviceL
                 }
             }
         });
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.O)
+    public void findPeer() {
+        WifiManager wifiManager = (WifiManager)getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+        customAlertView = LayoutInflater.from(MainActivity.this).inflate(R.layout.devicelist, null);
+        qrCodeData = customAlertView.findViewById(R.id.qrCodeData);
+        lottieAnimationView = customAlertView.findViewById(R.id.device_detail_loading);
+        alertDialog = new AlertDialog.Builder(MainActivity.this)
+                .setTitle("Scan the QrCode")
+                .setView(customAlertView)
+                .setNegativeButton("Done", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialogInterface, int i) {
+
+                    }
+                }).setCancelable(false)
+                .create();
+        alertDialog.show();
+        assert wifiManager != null;
+        wifiManager.startLocalOnlyHotspot(new WifiManager.LocalOnlyHotspotCallback(){
+            @Override
+            public void onStarted(WifiManager.LocalOnlyHotspotReservation reservation) {
+                Log.i(getLocalClassName(),"WifiOn");
+                String ssid = reservation.getWifiConfiguration().SSID;
+                String password = reservation.getWifiConfiguration().preSharedKey;
+                MultiFormatWriter multiFormatWriter = new MultiFormatWriter();
+                try{
+                    BitMatrix bitMatrix = multiFormatWriter.encode(ssid+" "+ password, BarcodeFormat.QR_CODE,200,200);
+                    BarcodeEncoder barcodeEncoder = new BarcodeEncoder();
+                    Bitmap bitmap = barcodeEncoder.createBitmap(bitMatrix);
+                    qrCodeData.setImageBitmap(bitmap);
+                    qrCodeData.setVisibility(View.VISIBLE);
+                    lottieAnimationView.setVisibility(View.GONE);
+                } catch (WriterException e) {
+                    e.printStackTrace();
+                }
+                Toast.makeText(getApplicationContext(),reservation.getWifiConfiguration().SSID+" "+ reservation.getWifiConfiguration().preSharedKey , Toast.LENGTH_SHORT).show();
+                super.onStarted(reservation);
+            }
+
+            @Override
+            public void onStopped() {
+                super.onStopped();
+            }
+
+            @Override
+            public void onFailed(int reason) {
+                super.onFailed(reason);
+            }
+        }, new Handler());
     }
 
     public class ServerClass extends Thread {
@@ -217,6 +291,7 @@ public class MainActivity extends AppCompatActivity implements UpdateUI, DeviceL
                 Toast.makeText(MainActivity.this, "The selected path is : " + path, Toast.LENGTH_SHORT).show();
                 myfiles=new File(path);
             }
+
         });
 
         // 3. Display File Picker !
@@ -259,7 +334,6 @@ public class MainActivity extends AppCompatActivity implements UpdateUI, DeviceL
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                status.setText(message);
                 Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
             }
         });
