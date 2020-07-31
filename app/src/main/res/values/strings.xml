@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Fatak</string>
+    <string name="empty_layout">Empty layout</string>
 </resources>

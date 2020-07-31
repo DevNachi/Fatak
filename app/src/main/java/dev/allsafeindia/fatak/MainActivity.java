@@ -6,6 +6,7 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
+import android.Manifest;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -54,18 +55,19 @@ import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.Objects;
 
 import dev.allsafeindia.fatak.server.FileHandler;
 import me.dm7.barcodescanner.zxing.ZXingScannerView;
 
-public class MainActivity extends AppCompatActivity implements UpdateUI, DeviceListClick, WifiP2pManager.PeerListListener, WifiP2pManager.ConnectionInfoListener,  ZXingScannerView.ResultHandler{
+public class MainActivity extends AppCompatActivity implements UpdateUI, DeviceListClick, WifiP2pManager.PeerListListener, WifiP2pManager.ConnectionInfoListener, ZXingScannerView.ResultHandler {
     public final static String TAG = "MainActivity";
     WifiP2pManager manager;
     WifiP2pManager.Channel channel;
     BroadcastReceiver receiver;
     IntentFilter intentFilter;
     List<WifiP2pDevice> p2pDevices = new ArrayList<>();
-    Button send,  receive;
+    Button send, receive;
     View customAlertView;
     DeviceAdapter deviceAdapter;
     WifiP2pConfig wifiP2pConfig;
@@ -78,8 +80,9 @@ public class MainActivity extends AppCompatActivity implements UpdateUI, DeviceL
     boolean isClient = false;
     ImageView qrCodeData;
     LottieAnimationView lottieAnimationView;
-    private static final int FILEPICKER_PERMISSIONS =1 ;
+    private static final int FILEPICKER_PERMISSIONS = 1;
     File myfiles;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -119,7 +122,7 @@ public class MainActivity extends AppCompatActivity implements UpdateUI, DeviceL
 
         //file picker
         Button filepickerBtn = findViewById(R.id.button_filepicker);
-        filepickerBtn.setOnClickListener(new View.OnClickListener(){
+        filepickerBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             //On click function
             public void onClick(View view) {
@@ -128,9 +131,9 @@ public class MainActivity extends AppCompatActivity implements UpdateUI, DeviceL
                         android.Manifest.permission.WRITE_EXTERNAL_STORAGE
                 };
 
-                if(hasPermissions(MainActivity.this, PERMISSIONS)){
+                if (hasPermissions(MainActivity.this, PERMISSIONS)) {
                     ShowFilepicker();
-                }else{
+                } else {
                     ActivityCompat.requestPermissions(MainActivity.this, PERMISSIONS, FILEPICKER_PERMISSIONS);
                 }
             }
@@ -139,7 +142,7 @@ public class MainActivity extends AppCompatActivity implements UpdateUI, DeviceL
 
     @RequiresApi(api = Build.VERSION_CODES.O)
     public void findPeer() {
-        WifiManager wifiManager = (WifiManager)getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+        WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
         customAlertView = LayoutInflater.from(MainActivity.this).inflate(R.layout.devicelist, null);
         qrCodeData = customAlertView.findViewById(R.id.qrCodeData);
         lottieAnimationView = customAlertView.findViewById(R.id.device_detail_loading);
@@ -155,15 +158,25 @@ public class MainActivity extends AppCompatActivity implements UpdateUI, DeviceL
                 .create();
         alertDialog.show();
         assert wifiManager != null;
-        wifiManager.startLocalOnlyHotspot(new WifiManager.LocalOnlyHotspotCallback(){
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            // TODO: Consider calling
+            //    ActivityCompat#requestPermissions
+            // here to request the missing permissions, and then overriding
+            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+            //                                          int[] grantResults)
+            // to handle the case where the user grants the permission. See the documentation
+            // for ActivityCompat#requestPermissions for more details.
+            return;
+        }
+        wifiManager.startLocalOnlyHotspot(new WifiManager.LocalOnlyHotspotCallback() {
             @Override
             public void onStarted(WifiManager.LocalOnlyHotspotReservation reservation) {
-                Log.i(getLocalClassName(),"WifiOn");
-                String ssid = reservation.getWifiConfiguration().SSID;
+                Log.i(getLocalClassName(), "WifiOn");
+                String ssid = Objects.requireNonNull(reservation.getWifiConfiguration()).SSID;
                 String password = reservation.getWifiConfiguration().preSharedKey;
                 MultiFormatWriter multiFormatWriter = new MultiFormatWriter();
-                try{
-                    BitMatrix bitMatrix = multiFormatWriter.encode(ssid+" "+ password, BarcodeFormat.QR_CODE,200,200);
+                try {
+                    BitMatrix bitMatrix = multiFormatWriter.encode(ssid + " " + password, BarcodeFormat.QR_CODE, 200, 200);
                     BarcodeEncoder barcodeEncoder = new BarcodeEncoder();
                     Bitmap bitmap = barcodeEncoder.createBitmap(bitMatrix);
                     qrCodeData.setImageBitmap(bitmap);
@@ -172,7 +185,7 @@ public class MainActivity extends AppCompatActivity implements UpdateUI, DeviceL
                 } catch (WriterException e) {
                     e.printStackTrace();
                 }
-                Toast.makeText(getApplicationContext(),reservation.getWifiConfiguration().SSID+" "+ reservation.getWifiConfiguration().preSharedKey , Toast.LENGTH_SHORT).show();
+                Toast.makeText(getApplicationContext(), reservation.getWifiConfiguration().SSID + " " + reservation.getWifiConfiguration().preSharedKey, Toast.LENGTH_SHORT).show();
                 super.onStarted(reservation);
             }
 
