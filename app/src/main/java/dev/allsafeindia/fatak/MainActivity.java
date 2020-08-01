@@ -75,13 +75,11 @@ public class MainActivity extends AppCompatActivity implements UpdateUI, DeviceL
     static FileHandler fileHandeler;
     ServerSocket serverSocket;
     ClientClass clientClass;
-    public TextView ipAddressList;
     AlertDialog alertDialog;
     boolean isClient = false;
     ImageView qrCodeData;
     LottieAnimationView lottieAnimationView;
     private static final int FILEPICKER_PERMISSIONS = 1;
-    File myfiles;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -93,7 +91,6 @@ public class MainActivity extends AppCompatActivity implements UpdateUI, DeviceL
         receiver = new WifiBroadcastReciver(manager, channel, this);
         deviceAdapter = new DeviceAdapter(this, p2pDevices);
         wifiP2pConfig = new WifiP2pConfig();
-        ipAddressList = findViewById(R.id.ipAdressList);
 
         StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
         StrictMode.setThreadPolicy(policy);
@@ -107,34 +104,27 @@ public class MainActivity extends AppCompatActivity implements UpdateUI, DeviceL
         registerReceiver(receiver, intentFilter);
 
         send.setOnClickListener(new View.OnClickListener() {
+            @RequiresApi(api = Build.VERSION_CODES.O)
             @Override
             public void onClick(final View view) {
                 try {
                     serverSocket = new ServerSocket(8888);
                     serverClass = new ServerClass(serverSocket, MainActivity.this);
                     serverClass.start();
-                    ipAddressList.setText(getLocalIpAddress());
+                    String[] PERMISSIONS = {
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                            android.Manifest.permission.READ_EXTERNAL_STORAGE,
+                            android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+                    };
+
+                    if (hasPermissions(MainActivity.this, PERMISSIONS)) {
+                        findPeer();
+                        ShowFilepicker();
+                    } else {
+                        ActivityCompat.requestPermissions(MainActivity.this, PERMISSIONS, FILEPICKER_PERMISSIONS);
+                    }
                 } catch (IOException e) {
                     e.printStackTrace();
-                }
-            }
-        });
-
-        //file picker
-        Button filepickerBtn = findViewById(R.id.button_filepicker);
-        filepickerBtn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            //On click function
-            public void onClick(View view) {
-                String[] PERMISSIONS = {
-                        android.Manifest.permission.READ_EXTERNAL_STORAGE,
-                        android.Manifest.permission.WRITE_EXTERNAL_STORAGE
-                };
-
-                if (hasPermissions(MainActivity.this, PERMISSIONS)) {
-                    ShowFilepicker();
-                } else {
-                    ActivityCompat.requestPermissions(MainActivity.this, PERMISSIONS, FILEPICKER_PERMISSIONS);
                 }
             }
         });
@@ -158,17 +148,17 @@ public class MainActivity extends AppCompatActivity implements UpdateUI, DeviceL
                 .create();
         alertDialog.show();
         assert wifiManager != null;
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
-            return;
-        }
-        wifiManager.startLocalOnlyHotspot(new WifiManager.LocalOnlyHotspotCallback() {
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                // TODO: Consider calling
+                //    ActivityCompat#requestPermissions
+                // here to request the missing permissions, and then overriding
+                //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+                //                                          int[] grantResults)
+                // to handle the case where the user grants the permission. See the documentation
+                // for ActivityCompat#requestPermissions for more details.
+                return;
+            }
+            wifiManager.startLocalOnlyHotspot(new WifiManager.LocalOnlyHotspotCallback() {
             @Override
             public void onStarted(WifiManager.LocalOnlyHotspotReservation reservation) {
                 Log.i(getLocalClassName(), "WifiOn");
@@ -298,13 +288,17 @@ public class MainActivity extends AppCompatActivity implements UpdateUI, DeviceL
                 .build();
 
         // 2. Retrieve the selected path by the user and show in a toast !
-        chooser.setOnSelectListener(new StorageChooser.OnSelectListener() {
+        chooser.setOnMultipleSelectListener(new StorageChooser.OnMultipleSelectListener() {
             @Override
-            public void onSelect(String path) {
-                Toast.makeText(MainActivity.this, "The selected path is : " + path, Toast.LENGTH_SHORT).show();
-                myfiles=new File(path);
+            public void onDone(ArrayList<String> selectedFilePaths) {
+                if (selectedFilePaths.size() > 0) {
+                    try {
+                        fileHandeler.sentData(new File(selectedFilePaths.get(0)));
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
             }
-
         });
 
         // 3. Display File Picker !
