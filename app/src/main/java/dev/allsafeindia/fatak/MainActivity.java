@@ -69,7 +69,6 @@ import java.util.Objects;
 import dev.allsafeindia.fatak.server.FileHandler;
 import me.dm7.barcodescanner.zxing.ZXingScannerView;
 
-//what is the plan
 public class MainActivity extends AppCompatActivity implements UpdateUI, DeviceListClick, WifiP2pManager.PeerListListener, WifiP2pManager.ConnectionInfoListener, ZXingScannerView.ResultHandler {
     public final static String TAG = "MainActivity";
     WifiP2pManager manager;
