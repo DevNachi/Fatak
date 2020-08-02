@@ -3,6 +3,8 @@
     android:id="@+id/device_list_root"
     android:orientation="horizontal"
     android:layout_height="60dp"
+    android:elevation="@dimen/cardview_default_elevation"
+    android:background="#333333"
     android:padding="8dp"
     android:layout_width="match_parent">
 
@@ -11,14 +13,15 @@
         android:layout_width="52dp"
         android:layout_height="match_parent"
         android:background="@drawable/ic_phone"
-        />
+        android:contentDescription="@string/YourDevice" />
     <TextView
         android:id="@+id/device_detail_name"
         android:layout_marginStart="20dp"
         android:layout_gravity="center"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Device name"
+        android:textColor="@color/colorWhite"
+        android:text="@string/YourDevice"
         android:textSize="18sp"
         />
 </LinearLayout>

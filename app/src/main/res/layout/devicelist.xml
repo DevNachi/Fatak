@@ -27,6 +27,6 @@
         android:id="@+id/no_devices_found"
         android:layout_width="wrap_content"
         android:layout_height="300dp"
-        android:background="@drawable/searchingDevices"
+        android:background="@drawable/searchdevice"
         android:contentDescription="@string/empty_layout" />
 </LinearLayout>

@@ -10,9 +10,11 @@ import android.Manifest;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.net.Uri;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
 import android.net.wifi.p2p.WifiP2pConfig;
@@ -44,6 +46,13 @@ import com.google.zxing.Result;
 import com.google.zxing.WriterException;
 import com.google.zxing.common.BitMatrix;
 import com.journeyapps.barcodescanner.BarcodeEncoder;
+import com.karumi.dexter.Dexter;
+import com.karumi.dexter.DexterActivity;
+import com.karumi.dexter.PermissionToken;
+import com.karumi.dexter.listener.PermissionDeniedResponse;
+import com.karumi.dexter.listener.PermissionGrantedResponse;
+import com.karumi.dexter.listener.PermissionRequest;
+import com.karumi.dexter.listener.single.PermissionListener;
 
 import java.io.File;
 import java.io.IOException;
@@ -60,6 +69,7 @@ import java.util.Objects;
 import dev.allsafeindia.fatak.server.FileHandler;
 import me.dm7.barcodescanner.zxing.ZXingScannerView;
 
+//what is the plan
 public class MainActivity extends AppCompatActivity implements UpdateUI, DeviceListClick, WifiP2pManager.PeerListListener, WifiP2pManager.ConnectionInfoListener, ZXingScannerView.ResultHandler {
     public final static String TAG = "MainActivity";
     WifiP2pManager manager;
@@ -108,6 +118,7 @@ public class MainActivity extends AppCompatActivity implements UpdateUI, DeviceL
             @Override
             public void onClick(final View view) {
                 try {
+                    //start server and sockets
                     serverSocket = new ServerSocket(8888);
                     serverClass = new ServerClass(serverSocket, MainActivity.this);
                     serverClass.start();
@@ -117,10 +128,13 @@ public class MainActivity extends AppCompatActivity implements UpdateUI, DeviceL
                             android.Manifest.permission.WRITE_EXTERNAL_STORAGE
                     };
 
+                    //ask all permissions
                     if (hasPermissions(MainActivity.this, PERMISSIONS)) {
+                        //permission granted
                         findPeer();
                         ShowFilepicker();
                     } else {
+                        //denied
                         ActivityCompat.requestPermissions(MainActivity.this, PERMISSIONS, FILEPICKER_PERMISSIONS);
                     }
                 } catch (IOException e) {
@@ -128,7 +142,46 @@ public class MainActivity extends AppCompatActivity implements UpdateUI, DeviceL
                 }
             }
         });
+
+        receive.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                customAlertView=LayoutInflater.from(MainActivity.this).inflate(R.layout.scanner, null);
+                final ZXingScannerView scannerView=customAlertView.findViewById(R.id.scanner);
+                Dexter.withActivity(MainActivity.this)
+                        .withPermission(Manifest.permission.CAMERA)
+                        .withListener(new PermissionListener() {
+                            @Override
+                            public void onPermissionGranted(PermissionGrantedResponse response) {
+                                scannerView.setResultHandler(MainActivity.this);
+                                scannerView.startCamera();
+                            }
+
+                            @Override
+                            public void onPermissionDenied(PermissionDeniedResponse response) {
+                                Toast.makeText(MainActivity.this,"Permission denied for Scan",Toast.LENGTH_LONG).show();
+                            }
+
+                            @Override
+                            public void onPermissionRationaleShouldBeShown(PermissionRequest permission, PermissionToken token) {
+
+                            }
+                        })
+                        .check();
+                alertDialog = new AlertDialog.Builder(MainActivity.this)
+                        .setView(customAlertView)
+                        .setNegativeButton("Done", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialogInterface, int i) {
+
+                            }
+                        }).setCancelable(false)
+                        .create();
+                alertDialog.show();
+            }
+        });
     }
+
 
     @RequiresApi(api = Build.VERSION_CODES.O)
     public void findPeer() {
@@ -137,7 +190,6 @@ public class MainActivity extends AppCompatActivity implements UpdateUI, DeviceL
         qrCodeData = customAlertView.findViewById(R.id.qrCodeData);
         lottieAnimationView = customAlertView.findViewById(R.id.device_detail_loading);
         alertDialog = new AlertDialog.Builder(MainActivity.this)
-                .setTitle("Scan the QrCode")
                 .setView(customAlertView)
                 .setNegativeButton("Done", new DialogInterface.OnClickListener() {
                     @Override
@@ -148,17 +200,17 @@ public class MainActivity extends AppCompatActivity implements UpdateUI, DeviceL
                 .create();
         alertDialog.show();
         assert wifiManager != null;
-            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                // TODO: Consider calling
-                //    ActivityCompat#requestPermissions
-                // here to request the missing permissions, and then overriding
-                //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-                //                                          int[] grantResults)
-                // to handle the case where the user grants the permission. See the documentation
-                // for ActivityCompat#requestPermissions for more details.
-                return;
-            }
-            wifiManager.startLocalOnlyHotspot(new WifiManager.LocalOnlyHotspotCallback() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            // TODO: Consider calling
+            //    ActivityCompat#requestPermissions
+            // here to request the missing permissions, and then overriding
+            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+            //                                          int[] grantResults)
+            // to handle the case where the user grants the permission. See the documentation
+            // for ActivityCompat#requestPermissions for more details.
+            return;
+        }
+        wifiManager.startLocalOnlyHotspot(new WifiManager.LocalOnlyHotspotCallback() {
             @Override
             public void onStarted(WifiManager.LocalOnlyHotspotReservation reservation) {
                 Log.i(getLocalClassName(), "WifiOn");
@@ -242,15 +294,13 @@ public class MainActivity extends AppCompatActivity implements UpdateUI, DeviceL
                 }
             }
         }
-
-
     }
 
     public String getLocalIpAddress() {
         try {
-            for (Enumeration<NetworkInterface> en = NetworkInterface.getNetworkInterfaces(); en.hasMoreElements();) {
+            for (Enumeration<NetworkInterface> en = NetworkInterface.getNetworkInterfaces(); en.hasMoreElements(); ) {
                 NetworkInterface intf = en.nextElement();
-                for (Enumeration<InetAddress> enumIpAddr = intf.getInetAddresses(); enumIpAddr.hasMoreElements();) {
+                for (Enumeration<InetAddress> enumIpAddr = intf.getInetAddresses(); enumIpAddr.hasMoreElements(); ) {
                     InetAddress inetAddress = enumIpAddr.nextElement();
                     if (!inetAddress.isLoopbackAddress()) {
                         return inetAddress.getHostAddress();
@@ -336,6 +386,7 @@ public class MainActivity extends AppCompatActivity implements UpdateUI, DeviceL
             return;
         }
     }
+
     @Override
     public void onThreadWorkDone(final String message) {
         runOnUiThread(new Runnable() {
@@ -354,7 +405,22 @@ public class MainActivity extends AppCompatActivity implements UpdateUI, DeviceL
 
     @Override
     public void deviceOnClick(WifiP2pDevice device) {
+        wifiP2pConfig.deviceAddress = device.deviceAddress;
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        manager.connect(channel, wifiP2pConfig, new WifiP2pManager.ActionListener() {
+            @Override
+            public void onSuccess() {
+                alertDialog.dismiss();
+                Toast.makeText(MainActivity.this, "connected", Toast.LENGTH_SHORT).show();
+            }
 
+            @Override
+            public void onFailure(int i) {
+                Toast.makeText(MainActivity.this, "Connection fail", Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     @Override
